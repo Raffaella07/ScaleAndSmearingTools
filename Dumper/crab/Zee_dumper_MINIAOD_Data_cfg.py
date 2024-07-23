@@ -12,7 +12,7 @@ process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag,'130X_mcRun3_2023_realistic_v14','')
+process.GlobalTag = GlobalTag(process.GlobalTag,'130X_dataRun3_PromptAnalysis_v1','')
 
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32( -1 ) )
 process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32( 1000 )
@@ -20,7 +20,9 @@ process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32( 1000 )
 process.source = cms.Source("PoolSource",
     skipEvents = cms.untracked.uint32(0),                       
     fileNames = cms.untracked.vstring(
-        'root://cms-xrd-global.cern.ch//store/mc/Run3Summer23MiniAODv4/DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/MINIAODSIM/130X_mcRun3_2023_realistic_v14-v1/70002/a8a27830-f9cc-4e85-8c93-df6864ab0e32.root'
+        'root://cms-xrd-global.cern.ch//store/data/Run2023C/EGamma0/MINIAOD/22Sep2023_v1-v1/50000/393f02e2-6564-4163-baef-2066ce96f167.root',
+        'root://cms-xrd-global.cern.ch//store/data/Run2023C/EGamma0/MINIAOD/22Sep2023_v1-v1/50000/605f515d-e025-4795-b30e-fedd72d1da07.root', 
+        'root://cms-xrd-global.cern.ch//store/data/Run2023C/EGamma0/MINIAOD/22Sep2023_v1-v1/2530000/2d30281d-533b-4e56-b101-e1cce53ec2ba.root'  
     ),
     secondaryFileNames = cms.untracked.vstring()
 ) 
@@ -34,6 +36,9 @@ my_id_modules = ['RecoEgamma.ElectronIdentification.Identification.cutBasedElect
 for idmod in my_id_modules:
     setupAllVIDIdsInModule(process,idmod,setupVIDElectronSelection)
 ##############################################################################################################################################################
+####################################### Setup the JSON Filter######################################################################################
+#process.jsonFilter = cms.EDFilter("JsonFilter", jsonFileName = cms.string("/eos/user/c/cmsdqm/www/CAF/certification/Collisions23/PromptReco/Cert_Collisions2023_366442_370790_Golden.json") ) #Hardcoded for now
+##################################################################################################################################################
 
 ########################## Make Photon regressed energies and the IDs accessible from the electron pointer ########################################### 
 process.slimmedECALELFElectrons = cms.EDProducer("PATElectronSlimmer",
@@ -93,6 +98,8 @@ process.slimmedECALELFElectrons = cms.EDProducer("PATElectronSlimmer",
 #################################################################################################################################
 
 process.load('ScaleAndSmearingTools.Dumper.Zee_dumper_MINIAOD_cfi') # Runs the ele energy producer and sets up the dumper
+process.zeedumper.isMC   = cms.bool(False)
+
 process.TFileService = cms.Service("TFileService",
     fileName = cms.string("output.root")
 )
@@ -107,7 +114,7 @@ process.output = cms.OutputModule("PoolOutputModule",
 from Geometry.CaloEventSetup.CaloGeometryBuilder_cfi import *
 CaloGeometryBuilder.SelectedCalos = ['HCAL', 'ZDC', 'EcalBarrel', 'EcalEndcap', 'EcalPreshower', 'TOWER'] # Why is this needed?
 
-process.eleNewEnergies_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons+process.zeedumper)
+process.eleNewEnergies_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons*process.zeedumper)
 
 #process.dumper_step = cms.Path(process.zeedumper)
 #process.output_step = cms.EndPath(process.output)

@@ -12,7 +12,7 @@ process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag,'130X_mcRun3_2023_realistic_v14','')
+process.GlobalTag = GlobalTag(process.GlobalTag,'130X_mcRun3_2023_realistic_postBPix_v2','')
 
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32( -1 ) )
 process.MessageLogger.cerr.FwkReport.reportEvery = cms.untracked.int32( 1000 )
@@ -107,12 +107,10 @@ process.output = cms.OutputModule("PoolOutputModule",
 from Geometry.CaloEventSetup.CaloGeometryBuilder_cfi import *
 CaloGeometryBuilder.SelectedCalos = ['HCAL', 'ZDC', 'EcalBarrel', 'EcalEndcap', 'EcalPreshower', 'TOWER'] # Why is this needed?
 
-process.eleNewEnergies_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons+process.zeedumper)
-
-#process.dumper_step = cms.Path(process.zeedumper)
+process.dumper_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons+process.zeedumper)
 #process.output_step = cms.EndPath(process.output)
 
-process.schedule = cms.Schedule(process.eleNewEnergies_step)
+process.schedule = cms.Schedule(process.dumper_step)
 
 
 

@@ -34,6 +34,7 @@
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 
 
 #include "Geometry/EcalAlgo/interface/EcalPreshowerGeometry.h"
@@ -74,6 +75,12 @@
 
 #include "ScaleAndSmearingTools/Dumper/interface/eleIDMap.h"
 #include "DataFormats/Common/interface/ValueMap.h"
+
+////////////// Trigger stuff ///////////////////////
+#include "FWCore/Framework/interface/TriggerNamesService.h"
+#include <FWCore/Common/interface/TriggerNames.h>
+#include <DataFormats/Common/interface/TriggerResults.h>
+////////////////////////////////////////////////////
 
 
 #define NELE 3
@@ -132,6 +139,13 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
      UShort_t  _nBX;           ///< bunch crossing
      Bool_t    _isTrain;
 
+     Float_t   _mcGenWeight;   ///< weight in generator for MC
+
+     std::vector< std::string >  _HLTNames[1];   ///< List of HLT names
+     std::vector<Bool_t>         _HLTResults[1]; ///< 0 = fail, 1=fire
+     std::map<std::string, bool> _HLTBits;
+     Bool_t                      _HLTfire;       ///< true if pass the triggers indicated by hltPaths in cfg
+ 
 
      // pileup
      Float_t  _rho;    ///< _rho fast jet
@@ -148,6 +162,8 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
      Float_t  _phiEle[NELE]       = initFloat;     ///< phi of the electron (electron object)
      Float_t  _R9Ele[NELE]        = initFloat;     ///< e3x3/_rawEnergySCEle
 
+     //ID variables
+     std::string _eleID_loose, _eleID_medium, _eleID_tight;
 
      // SC variables
      Float_t _etaSCEle[NELE]    = initFloat; ///< eta of the SC
@@ -182,6 +198,7 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
       edm::Handle<double> rhoHandle;
       edm::Handle<std::vector< PileupSummaryInfo > > PupInfo;
       edm::Handle<edm::View<reco::GenParticle> > genParticlesHandle;
+      edm::Handle< GenEventInfoProduct >             _GenEventInfoHandle;
       edm::Handle<EcalRecHitCollection> EBRechitsHandle;
       edm::Handle<EcalRecHitCollection> EERechitsHandle;
       edm::Handle<EcalRecHitCollection> ESRechitsHandle;
@@ -189,11 +206,14 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
       edm::Handle<std::vector<reco::SuperCluster>> EESuperClustersHandle;
       edm::Handle<std::vector<pat::Electron> > electronsHandle; 
       edm::Handle<edm::ValueMap<float> > energySCElePhoMapHandle;
+      edm::Handle<edm::TriggerResults>   _triggerResultsHandle;
 
       //---------------- Input Tags-----------------------
+      edm::EDGetTokenT<GenEventInfoProduct>    _generatorInfoToken;
       edm::EDGetTokenT<reco::VertexCollection> vtxCollectionToken_;
       edm::EDGetTokenT<double> rhoToken_;
       edm::EDGetTokenT<std::vector<PileupSummaryInfo> > pileupInfoToken_;
+      std::vector< std::string> hltPaths;
       edm::EDGetTokenT<EcalRecHitCollection> recHitCollectionEBToken_;
       edm::EDGetTokenT<EcalRecHitCollection> recHitCollectionEEToken_;
       edm::EDGetTokenT<EcalRecHitCollection> recHitCollectionESToken_;	
@@ -202,7 +222,8 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
       edm::EDGetTokenT<std::vector<pat::Electron> > electronsToken_;
       edm::EDGetTokenT<edm::View<reco::GenParticle> > genParticlesToken_;
       edm::EDGetTokenT<edm::ValueMap<float> > energySCElePhoMapToken_;
-
+      edm::InputTag triggerResultsTAG;
+      edm::EDGetTokenT<edm::TriggerResults>   _triggerResultsToken;
 };
 
 //
@@ -216,7 +237,13 @@ class ZeeDumper : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
 //
 // constructors and destructor
 //
-ZeeDumper::ZeeDumper(const edm::ParameterSet& iConfig)
+ZeeDumper::ZeeDumper(const edm::ParameterSet& iConfig):
+	_eleID_loose(iConfig.getParameter< std::string>("eleID_loose")),
+        _eleID_medium(iConfig.getParameter< std::string>("eleID_medium")),
+        _eleID_tight(iConfig.getParameter< std::string>("eleID_tight")),
+	_generatorInfoToken(consumes<GenEventInfoProduct>(edm::InputTag("generator"))),
+	hltPaths(iConfig.getParameter< std::vector<std::string> >("hltPaths")),
+	_triggerResultsToken(consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("triggerResultsCollection")))
 {
    //now do what ever initialization is needed
    isMC_                    = iConfig.getParameter<bool>("isMC"); 
@@ -266,8 +293,11 @@ ZeeDumper::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    _chargeEle[1] = initSingleIntCharge;
    _chargeEle[2] = initSingleIntCharge;
 
-   iEvent.getByToken(pileupInfoToken_, PupInfo);
-   iEvent.getByToken(genParticlesToken_, genParticlesHandle);
+   if(isMC_){
+	iEvent.getByToken(_generatorInfoToken, _GenEventInfoHandle);   
+   	iEvent.getByToken(pileupInfoToken_, PupInfo);
+   	iEvent.getByToken(genParticlesToken_, genParticlesHandle);
+   }
    iEvent.getByToken(rhoToken_, rhoHandle);
    iEvent.getByToken(vtxCollectionToken_, primaryVertexHandle);
    iEvent.getByToken(recHitCollectionEBToken_, EBRechitsHandle);
@@ -278,9 +308,27 @@ ZeeDumper::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
    iEvent.getByToken(electronsToken_, electronsHandle);
    iEvent.getByToken(energySCElePhoMapToken_, energySCElePhoMapHandle);
+   iEvent.getByToken(_triggerResultsToken, _triggerResultsHandle);
 
    TreeSetEventSummaryVar(iEvent);
    TreeSetPileupVar();
+
+// at least one of the triggers
+        _HLTfire = false;
+        if(!hltPaths.empty()) {
+		for(std::vector<std::string>::const_iterator hltPath_itr = hltPaths.begin();
+                        hltPath_itr != hltPaths.end();
+                        hltPath_itr++) {
+
+			if(hltPath_itr->empty()) continue;
+                        std::map<std::string, bool>::const_iterator it = _HLTBits.find(*hltPath_itr);
+			if(it != _HLTBits.end()) {
+				_HLTfire += it->second;
+			}
+
+		}
+
+	}
 
 
 ///////////////////////////Fill Electron/Photon related stuff/////////////////////////////////////////////////////
@@ -288,7 +336,9 @@ ZeeDumper::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    bool doFill = false;
    //std::cout<< "nElectrons: " << electronsHandle->size() << std::endl;
 
+
    for( pat::ElectronCollection::const_iterator eleIter1 = electronsHandle->begin(); eleIter1 != electronsHandle->end(); eleIter1++) {
+
         if( eleIter1->pt() < 15. ) continue;
         if(!eleIter1->ecalDrivenSeed()) continue;
 	if(eleIter1->superCluster().isNull() && eleIter1->parentSuperCluster().isNull()) continue;
@@ -405,7 +455,7 @@ void ZeeDumper::TreeSetSingleElectronVar(const pat::Electron& electron, int inde
         _energyEle[index] = electron.energy(); 
         _energy_5x5SC[index] = electron.full5x5_e5x5();
         _energy_ECAL_ele[index] = electron.correctedEcalEnergy();
-        //_energy_ECAL_pho[index] = electron.userFloat("eleNewEnergiesProducer:energySCElePho");
+        _energy_ECAL_pho[index] = electron.userFloat("energySCElePho");
 
         //std::cout << "TreeSetSingleElectronVar: " << index << std::endl;
         
@@ -450,6 +500,12 @@ void ZeeDumper::InitNewTree()
         _tree->Branch("eventTime",       &_eventTime,     "eventTime/i");
         _tree->Branch("nBX",           &_nBX,         "nBX/s");
         _tree->Branch("isTrain",        &_isTrain,      "isTrain/B"); 
+
+	_tree->Branch("mcGenWeight",   &_mcGenWeight, "mcGenWeight/F");
+
+	_tree->Branch("HLTfire", &_HLTfire, "HLTfire/B");
+        //_tree->Branch("HLTNames",&(_HLTNames[0]));
+        //_tree->Branch("HLTResults",&(_HLTResults[0]));
 
 	_tree->Branch("rho", &_rho, "rho/F");
         _tree->Branch("nPV", &_nPV, "nPV/b");
@@ -535,6 +591,21 @@ void ZeeDumper::TreeSetEventSummaryVar(const edm::Event& iEvent)
         _nBX = (UShort_t)  iEvent.bunchCrossing();
         _lumiBlock = (UShort_t) iEvent.luminosityBlock();
 
+	if(!hltPaths.empty()) {
+                edm::TriggerNames hltNames = iEvent.triggerNames(*_triggerResultsHandle);
+                int hltCount = _triggerResultsHandle->size();
+                _HLTNames[0].clear();
+                _HLTBits.clear();
+                for (int i = 0 ; i < hltCount; ++i) {
+                        std::string hltName_str(hltNames.triggerName(i));
+                        (_HLTNames[0]).push_back(hltName_str);
+                        (_HLTResults[0]).push_back(_triggerResultsHandle->accept(i));
+                        _HLTBits.insert(std::pair<std::string, bool>( hltName_str, _triggerResultsHandle->accept(i)));
+		}
+	}
+
+	return;
+
 }
 
 
@@ -581,7 +652,7 @@ UInt_t ZeeDumper::GetID(const pat::Electron& electron)
         eleIDMap eleID_map;
         UInt_t eleID = 0;
 	for (std::map<std::string, UInt_t>::iterator it = eleID_map.eleIDmap.begin(); it != eleID_map.eleIDmap.end(); ++it) {
-
+//	     std::cout << "eleID is " << it->first << "; isAvailable is " << electron.isElectronIDAvailable(it->first) << std::endl;
 	     if(electron.isElectronIDAvailable(it->first)) { //
 		if ((bool) electron.electronID(it->first))  eleID |= it->second;//
 	     }//
@@ -606,6 +677,7 @@ void ZeeDumper::TreeSetPileupVar(void)
         _rho = *rhoHandle;
         _nPV = -1;
         _nPU = -1;
+	_mcGenWeight = -1;
 
         if(primaryVertexHandle->size() > 0) {
                 for(reco::VertexCollection::const_iterator v = primaryVertexHandle->begin(); v != primaryVertexHandle->end(); ++v) {
@@ -622,7 +694,14 @@ void ZeeDumper::TreeSetPileupVar(void)
                    _nPU = PVI->getTrueNumInteractions();
                 }
            }
+
+	   if(!_GenEventInfoHandle->weights().empty()) {
+                        _mcGenWeight = (_GenEventInfoHandle->weights())[0];
+                }
         }
+
+	
+
 
         return;
 	

@@ -3,7 +3,9 @@
 <use   name="FWCore/ParameterSet"/>
 <use   name="FWCore/ServiceRegistry"/>
 <use   name="CommonTools/UtilAlgos"/>
+<use   name="CommonTools/CandAlgos"/>
 <use   name="SimDataFormats/PileupSummaryInfo"/>
+<use   name="SimDataFormats/GeneratorProducts"/>
 <use   name="Geometry/CaloGeometry"/>
 <use   name="Geometry/EcalAlgo"/>
 <use   name="Geometry/CaloTopology"/>

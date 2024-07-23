@@ -107,12 +107,10 @@ process.output = cms.OutputModule("PoolOutputModule",
 from Geometry.CaloEventSetup.CaloGeometryBuilder_cfi import *
 CaloGeometryBuilder.SelectedCalos = ['HCAL', 'ZDC', 'EcalBarrel', 'EcalEndcap', 'EcalPreshower', 'TOWER'] # Why is this needed?
 
-process.eleNewEnergies_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons+process.zeedumper)
-
-#process.dumper_step = cms.Path(process.zeedumper)
+process.dumper_step = cms.Path(process.egmGsfElectronIDSequence+process.eleNewEnergiesProducer+process.slimmedECALELFElectrons+process.zeedumper)
 #process.output_step = cms.EndPath(process.output)
 
-process.schedule = cms.Schedule(process.eleNewEnergies_step)
+process.schedule = cms.Schedule(process.dumper_step)
 
 
 

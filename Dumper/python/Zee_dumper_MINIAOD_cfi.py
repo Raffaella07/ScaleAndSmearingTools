@@ -42,8 +42,14 @@ zeedumper = cms.EDAnalyzer("ZeeDumper",
     ecalRecHitsES     = cms.InputTag("reducedEgamma","reducedESRecHits"),
     superClustersEB   = cms.InputTag("reducedEgamma","reducedSuperClusters"),
     superClustersEE   = cms.InputTag("reducedEgamma","reducedSuperClusters"),
-    electrons         = cms.InputTag("slimmedElectrons"),
-    energySCElePhoMap = cms.InputTag("eleNewEnergiesProducer","energySCElePho")
+    electrons         = cms.InputTag("slimmedECALELFElectrons"),
+    energySCElePhoMap = cms.InputTag("eleNewEnergiesProducer","energySCElePho"),
+    eleID_loose = cms.string("looseRun2022"),
+    eleID_medium= cms.string("mediumRun2022"),
+    eleID_tight = cms.string("tightRun2022"),
+    hltPaths = cms.vstring(
 
+                ),
+    triggerResultsCollection = cms.InputTag('TriggerResults::HLT')
 )
 
