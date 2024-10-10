@@ -25,6 +25,8 @@
 <use   name="RecoEgamma/EgammaElectronAlgos"/>
 <use   name="RecoEcal/EgammaClusterAlgos"/>
 <use   name="CommonTools/Egamma"/>
+<use   name="TrackingTools/IPTools"/>
+<use   name="PhysicsTools/PatAlgos"/>
 <use   name="rootcore"/>
 <use   name="rootrflx"/>
 <use   name="roofit"/>
